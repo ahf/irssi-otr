@@ -20,7 +20,6 @@
  */
 
 #define _GNU_SOURCE
-#include <assert.h>
 #include <glib.h>
 #include <glib/gprintf.h>
 #include <glib/gstdio.h>
@@ -64,17 +63,19 @@ static void sig_server_sendmsg(SERVER_REC *server, const char *target,
 	key_gen_check();
 
 	if (GPOINTER_TO_INT(target_type_p) != SEND_TARGET_NICK) {
-		goto end;
+		otrl_message_free(otrmsg);
+		return;
 	}
 
 	/* Critical section. On error, message MUST NOT be sent */
 	ret = otr_send(server, msg, target, &otrmsg);
 	if (ret) {
 		signal_stop();
-		goto end;
+		otrl_message_free(otrmsg);
+		return;
 	}
 
-	if (!otrmsg) {
+	if (otrmsg == NULL) {
 		/* Send original message */
 		signal_continue(4, server, target, msg, target_type_p);
 	} else {
@@ -82,9 +83,7 @@ static void sig_server_sendmsg(SERVER_REC *server, const char *target,
 		signal_continue(4, server, target, otrmsg, target_type_p);
 	}
 
-end:
 	otrl_message_free(otrmsg);
-	return;
 }
 
 /*
@@ -101,10 +100,11 @@ void sig_message_private(SERVER_REC *server, const char *msg,
 	ret = otr_receive(server, msg, nick, &new_msg);
 	if (ret) {
 		signal_stop();
-		goto end;
+		otrl_message_free(new_msg);
+		return;
 	}
 
-	if (!new_msg) {
+	if (new_msg == NULL) {
 		/* This message was not OTR */
 		signal_continue(4, server, msg, nick, address);
 	} else {
@@ -113,7 +113,7 @@ void sig_message_private(SERVER_REC *server, const char *msg,
 		 * receive a message beginning with /me but rather let irssi handle it
 		 * as a IRC action.
 		 */
-		if (!strncmp(new_msg, OTR_IRC_MARKER_ME, OTR_IRC_MARKER_ME_LEN)) {
+		if (strncmp(new_msg, OTR_IRC_MARKER_ME, OTR_IRC_MARKER_ME_LEN) == 0) {
 			signal_stop();
 			signal_emit("message irc action", 5, server,
 					new_msg + OTR_IRC_MARKER_ME_LEN, nick, address, nick);
@@ -123,7 +123,6 @@ void sig_message_private(SERVER_REC *server, const char *msg,
 		}
 	}
 
-end:
 	otrl_message_free(new_msg);
 	return;
 }
@@ -153,16 +152,16 @@ static void cmd_me(const char *data, IRC_SERVER_REC *server,
 
 	key_gen_check();
 
-	if (!query || !query->server) {
-		goto end;
+	if (query == NULL || query->server == NULL) {
+		return;
 	}
 
 	CMD_IRC_SERVER(server);
 	if (!IS_IRC_QUERY(query)) {
-		goto end;
+		return;
 	}
 
-	if (!server || !server->connected) {
+	if (server == NULL || !server->connected) {
 		cmd_return_error(CMDERR_NOT_CONNECTED);
 	}
 
@@ -170,15 +169,15 @@ static void cmd_me(const char *data, IRC_SERVER_REC *server,
 
 	ret = asprintf(&msg, OTR_IRC_MARKER_ME "%s", data);
 	if (ret < 0) {
-		goto end;
+		return;
 	}
 
 	/* Critical section. On error, message MUST NOT be sent */
 	ret = otr_send(query->server, msg, target, &otrmsg);
 	free(msg);
 
-	if (!otrmsg) {
-		goto end;
+	if (otrmsg == NULL) {
+		return;
 	}
 
 	signal_stop();
@@ -190,9 +189,6 @@ static void cmd_me(const char *data, IRC_SERVER_REC *server,
 	}
 
 	signal_emit("message irc own_action", 3, server, data, item->visible_name);
-
-end:
-	return;
 }
 
 /*
@@ -210,13 +206,13 @@ static void cmd_otr(const char *data, void *server, WI_ITEM_REC *item)
 
 	if (*data == '\0') {
 		IRSSI_INFO(NULL, NULL, "Alive!");
-		goto end;
+		return;
 	}
 
 	utils_extract_command(data, &cmd);
-	if (!cmd) {
+	if (cmd == NULL) {
 		/* ENOMEM and cmd is untouched. */
-		goto end;
+		return;
 	}
 
 	if (query && query->server && query->server->connrec) {
@@ -228,9 +224,6 @@ static void cmd_otr(const char *data, void *server, WI_ITEM_REC *item)
 	statusbar_items_redraw("otr");
 
 	free(cmd);
-
-end:
-	return;
 }
 
 /*
@@ -268,10 +261,10 @@ static int create_module_dir(void)
 	char *dir_path = NULL;
 
 	/* Create ~/.irssi/otr directory. */
-	ret = asprintf(&dir_path, "%s%s", get_client_config_dir(), OTR_DIR);
+	ret = asprintf(&dir_path, "%s%s", get_irssi_dir(), OTR_DIR);
 	if (ret < 0) {
 		IRSSI_MSG("Unable to allocate home dir path.");
-		goto error_alloc;
+		return ret;
 	}
 
 	ret = access(dir_path, F_OK);
@@ -279,17 +272,18 @@ static int create_module_dir(void)
 		ret = mkdir(dir_path, S_IRWXU);
 		if (ret < 0) {
 			IRSSI_MSG("Unable to create %s directory.", dir_path);
-			goto error;
+
+			// We are being explicit with the free() and return call here.
+			free(dir_path);
+			return ret;
 		}
 	}
 
-error:
 	free(dir_path);
-error_alloc:
 	return ret;
 }
 
-void irssi_send_message(SERVER_REC *irssi, const char *recipient,
+void irssi_send_message(SERVER_REC *server, const char *recipient,
 		const char *msg)
 {
 	/*
@@ -297,11 +291,11 @@ void irssi_send_message(SERVER_REC *irssi, const char *recipient,
 	 * been reported with the irssi xmpp plugin. In that case, just return an
 	 * do nothing.
 	 */
-	if (!irssi) {
+	if (server == NULL) {
 		return;
 	}
 
-	irssi->send_message(irssi, recipient, msg,
+	server->send_message(server, recipient, msg,
 			GPOINTER_TO_INT(SEND_TARGET_NICK));
 }
 
@@ -326,7 +320,7 @@ void otr_init(void)
 	otr_lib_init();
 
 	user_state_global = otr_init_user_state();
-	if (!user_state_global) {
+	if (user_state_global == NULL) {
 		IRSSI_MSG("Unable to allocate user global state");
 		return;
 	}

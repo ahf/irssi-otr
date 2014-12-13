@@ -42,11 +42,6 @@
 #include <src/fe-text/statusbar-item.h>
 
 /* Ease our life a bit. */
-#define get_client_config_dir	get_irssi_dir
-
-#define IRSSI_CONN_ADDR(i)		i->connrec->address
-#define IRSSI_NICK(i)			i->nick
-
 #define OTR_IRSSI_MSG_PREFIX	"%9OTR%9: "
 
 /*

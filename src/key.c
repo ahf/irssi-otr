@@ -20,7 +20,6 @@
  */
 
 #define _GNU_SOURCE
-#include <assert.h>
 #include <glib/gstdio.h>
 #include <libgen.h>
 #include <pthread.h>
@@ -50,12 +49,12 @@ static char *file_path_build(const char *path)
 	int ret;
 	char *filename;
 
-	if (!path) {
+	if (path == NULL) {
 		path = "";
 	}
 
 	/* Either NULL or the filename is returned here which is valid. */
-	ret = asprintf(&filename, "%s%s", get_client_config_dir(), path);
+	ret = asprintf(&filename, "%s%s", get_irssi_dir(), path);
 	if (ret < 0) {
 		filename = NULL;
 	}
@@ -90,11 +89,11 @@ static void reset_key_gen_state(void)
  * NOTE: NO irssi interaction should be done here like emitting signals or else
  * it causes a segfaults of libperl.
  */
-static void *generate_key(void *data)
+static void* generate_key(void *data)
 {
 	gcry_error_t err;
 
-	assert(key_gen_state.newkey);
+	g_assert(key_gen_state.newkey);
 
 	key_gen_state.status = KEY_GEN_RUNNING;
 
@@ -102,12 +101,10 @@ static void *generate_key(void *data)
 	if (err != GPG_ERR_NO_ERROR) {
 		key_gen_state.status = KEY_GEN_ERROR;
 		key_gen_state.gcry_error = err;
-		goto error;
+		return NULL;
 	}
 
 	key_gen_state.status = KEY_GEN_FINISHED;
-
-error:
 	return NULL;
 }
 
@@ -155,14 +152,14 @@ void key_gen_run(struct otr_user_state *ustate, const char *account_name)
 	int ret;
 	gcry_error_t err;
 
-	assert(ustate);
-	assert(account_name);
+	g_assert(ustate != NULL);
+	g_assert(account_name != NULL);
 
 	if (key_gen_state.status != KEY_GEN_IDLE) {
 		IRSSI_INFO(NULL, NULL, "Key generation for %s is still in progress. ",
 				"Please wait until completion before creating a new key.",
 				key_gen_state.account_name);
-		goto error_status;
+		return;
 	}
 
 	/* Make sure the pointer does not go away during the proess. */
@@ -173,7 +170,8 @@ void key_gen_run(struct otr_user_state *ustate, const char *account_name)
 	key_gen_state.key_file_path = file_path_build(OTR_KEYFILE);
 	if (!key_gen_state.key_file_path) {
 		IRSSI_INFO(NULL, NULL, "Key generation failed. ENOMEM");
-		goto error;
+		reset_key_gen_state();
+		return;
 	}
 
 	IRSSI_MSG("Key generation started for %9%s%n", key_gen_state.account_name);
@@ -182,22 +180,17 @@ void key_gen_run(struct otr_user_state *ustate, const char *account_name)
 			OTR_PROTOCOL_ID, &key_gen_state.newkey);
 	if (err != GPG_ERR_NO_ERROR || !key_gen_state.newkey) {
 		IRSSI_MSG("Key generation start failed. Err: %s", gcry_strerror(err));
-		goto error;
+		reset_key_gen_state();
+		return;
 	}
 
 	ret = pthread_create(&keygen_thread, NULL, generate_key, NULL);
 	if (ret < 0) {
 		IRSSI_MSG("Key generation failed. Thread failure: %s",
 				strerror(errno));
-		goto error;
+		reset_key_gen_state();
+		return;
 	}
-
-	return;
-
-error:
-	reset_key_gen_state();
-error_status:
-	return;
 }
 
 /*
@@ -208,11 +201,11 @@ void key_write_fingerprints(struct otr_user_state *ustate)
 	gcry_error_t err;
 	char *filename;
 
-	assert(ustate);
+	g_assert(ustate != NULL);
 
 	filename = file_path_build(OTR_FINGERPRINTS_FILE);
-	if (!filename) {
-		goto error_filename;
+	if (filename == NULL) {
+		return;
 	}
 
 	err = otrl_privkey_write_fingerprints(ustate->otr_state, filename);
@@ -224,8 +217,6 @@ void key_write_fingerprints(struct otr_user_state *ustate)
 	}
 
 	free(filename);
-error_filename:
-	return;
 }
 
 /*
@@ -236,11 +227,11 @@ void key_write_instags(struct otr_user_state *ustate)
 	gcry_error_t err;
 	char *filename;
 
-	assert(ustate);
+	g_assert(ustate != NULL);
 
 	filename = file_path_build(OTR_INSTAG_FILE);
-	if (!filename) {
-		goto error_filename;
+	if (filename == NULL) {
+		return;
 	}
 
 	err = otrl_instag_write(ustate->otr_state, filename);
@@ -252,8 +243,6 @@ void key_write_instags(struct otr_user_state *ustate)
 	}
 
 	free(filename);
-error_filename:
-	return;
 }
 
 /*
@@ -265,17 +254,18 @@ void key_load(struct otr_user_state *ustate)
 	gcry_error_t err;
 	char *filename;
 
-	assert(ustate);
+	g_assert(ustate != NULL);
 
 	filename = file_path_build(OTR_KEYFILE);
-	if (!filename) {
-		goto error_filename;
+	if (filename == NULL) {
+		return;
 	}
 
 	ret = access(filename, F_OK);
 	if (ret < 0) {
 		IRSSI_DEBUG("No private keys found in %9%s%9", filename);
-		goto end;
+		free(filename);
+		return;
 	}
 
 	err = otrl_privkey_read(ustate->otr_state, filename);
@@ -285,11 +275,6 @@ void key_load(struct otr_user_state *ustate)
 		IRSSI_DEBUG("Error loading private keys: %d (%d)",
 				gcry_strerror(err), gcry_strsource(err));
 	}
-
-end:
-	free(filename);
-error_filename:
-	return;
 }
 
 /*
@@ -301,17 +286,18 @@ void key_load_fingerprints(struct otr_user_state *ustate)
 	gcry_error_t err;
 	char *filename;
 
-	assert(ustate);
+	g_assert(ustate != NULL);
 
 	filename = file_path_build(OTR_FINGERPRINTS_FILE);
-	if (!filename) {
-		goto error_filename;
+	if (filename == NULL) {
+		return;
 	}
 
 	ret = access(filename, F_OK);
 	if (ret < 0) {
 		IRSSI_DEBUG("No fingerprints found in %9%s%9", filename);
-		goto end;
+		free(filename);
+		return;
 	}
 
 	err = otrl_privkey_read_fingerprints(ustate->otr_state, filename, NULL,
@@ -322,9 +308,4 @@ void key_load_fingerprints(struct otr_user_state *ustate)
 		IRSSI_DEBUG("Error loading fingerprints: %d (%d)",
 				gcry_strerror(err), gcry_strsource(err));
 	}
-
-end:
-	free(filename);
-error_filename:
-	return;
 }

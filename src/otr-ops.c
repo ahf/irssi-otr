@@ -17,8 +17,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA
  */
 
-#include <assert.h>
-
 #include "key.h"
 #include "module.h"
 
@@ -52,10 +50,10 @@ static void ops_create_privkey(void *opdata, const char *accountname,
 static void ops_inject_msg(void *opdata, const char *accountname,
 		const char *protocol, const char *recipient, const char *message)
 {
-	SERVER_REC *irssi = opdata;
+	SERVER_REC *server = opdata;
 
 	IRSSI_DEBUG("Inject msg:\n[%s]", message);
-	irssi_send_message(irssi, recipient, message);
+	irssi_send_message(server, recipient, message);
 }
 
 /*
@@ -66,15 +64,15 @@ static void ops_secure(void *opdata, ConnContext *context)
 	int ret;
 	char ownfp[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
 	char peerfp[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
-	SERVER_REC *irssi = opdata;
+	SERVER_REC *server = opdata;
 	struct otr_peer_context *opc;
 
-	assert(context);
+	g_assert(context != NULL);
 	/* This should *really* not happened */
-	assert(context->msgstate == OTRL_MSGSTATE_ENCRYPTED);
+	g_assert(context->msgstate == OTRL_MSGSTATE_ENCRYPTED);
 
-	IRSSI_NOTICE(irssi, context->username, "Gone %9secure%9");
-	otr_status_change(irssi, context->username, OTR_STATUS_GONE_SECURE);
+	IRSSI_NOTICE(server, context->username, "Gone %9secure%9");
+	otr_status_change(server, context->username, OTR_STATUS_GONE_SECURE);
 
 	opc = context->app_data;
 	opc->active_fingerprint = context->active_fingerprint;
@@ -82,7 +80,7 @@ static void ops_secure(void *opdata, ConnContext *context)
 	ret = otrl_context_is_fingerprint_trusted(context->active_fingerprint);
 	if (ret) {
 		/* Secure and trusted */
-		goto end;
+		return;
 	}
 
 	/* Not authenticated. Let's print out the fingerprints for comparison. */
@@ -91,7 +89,7 @@ static void ops_secure(void *opdata, ConnContext *context)
 	otrl_privkey_fingerprint(user_state_global->otr_state, ownfp,
 			context->accountname, OTR_PROTOCOL_ID);
 
-	IRSSI_NOTICE(irssi, context->username, "Your peer is not "
+	IRSSI_NOTICE(server, context->username, "Your peer is not "
 			"authenticated. To make sure you're talking to the right person you can "
 			"either agree on a secret and use the authentication command "
 			"%9/otr auth%9 or %9/otr authq [QUESTION] SECRET%9. You can also "
@@ -99,13 +97,10 @@ static void ops_secure(void *opdata, ConnContext *context)
 			"(e.g. telephone or GPG-signed mail) and subsequently enter "
 			"%9/otr trust%9.");
 
-	IRSSI_NOTICE(irssi, context->username, "Your fingerprint is: %y%s%n",
+	IRSSI_NOTICE(server, context->username, "Your fingerprint is: %y%s%n",
 			ownfp);
-	IRSSI_NOTICE(irssi, context->username, "%9%s's%9 fingerprint is: %r%s%n",
+	IRSSI_NOTICE(server, context->username, "%9%s's%9 fingerprint is: %r%s%n",
 			context->username, peerfp);
-
-end:
-	return;
 }
 
 /*
@@ -113,10 +108,10 @@ end:
  */
 static void ops_insecure(void *opdata, ConnContext *context)
 {
-	SERVER_REC *irssi = opdata;
+	SERVER_REC *server = opdata;
 
-	IRSSI_NOTICE(irssi, context->username, "Gone %rinsecure%r");
-	otr_status_change(irssi, context->username, OTR_STATUS_GONE_INSECURE);
+	IRSSI_NOTICE(server, context->username, "Gone %rinsecure%r");
+	otr_status_change(server, context->username, OTR_STATUS_GONE_INSECURE);
 }
 
 /*
@@ -206,8 +201,7 @@ static void ops_handle_msg_event(void *opdata, OtrlMessageEvent msg_event,
 		 * submit a patch or email me a better way.
 		 */
 		signal_remove("message private", (SIGNAL_FUNC) sig_message_private);
-		signal_emit("message private", 4, server, message, username,
-				IRSSI_CONN_ADDR(server));
+		signal_emit("message private", 4, server, message, username, server->connrec->address);
 		signal_add_first("message private", (SIGNAL_FUNC) sig_message_private);
 		break;
 	case OTRL_MSGEVENT_RCVDMSG_UNRECOGNIZED:
@@ -241,9 +235,9 @@ static int ops_is_logged_in(void *opdata, const char *accountname,
 		const char *protocol, const char *recipient)
 {
 	int ret;
-	SERVER_REC *irssi = opdata;
+	SERVER_REC *server = opdata;
 
-	if (irssi) {
+	if (server != NULL) {
 		/* Logged in */
 		ret = 1;
 	} else {
@@ -268,7 +262,7 @@ static void ops_create_instag(void *opdata, const char *accountname,
 static void ops_smp_event(void *opdata, OtrlSMPEvent smp_event,
 		ConnContext *context, unsigned short progress_percent, char *question)
 {
-	SERVER_REC *irssi = opdata;
+	SERVER_REC *server = opdata;
 	const char *from = context->username;
 	struct otr_peer_context *opc = context->app_data;
 
@@ -278,46 +272,46 @@ static void ops_smp_event(void *opdata, OtrlSMPEvent smp_event,
 	 * call or if non existent when returned from
 	 * otrl_message_sending/receiving.
 	 */
-	assert(opc);
+	g_assert(opc != NULL);
 
 	opc->smp_event = smp_event;
 
 	switch (smp_event) {
 	case OTRL_SMPEVENT_ASK_FOR_SECRET:
-		IRSSI_NOTICE(irssi, from, "%9%s%9 wants to authenticate. "
+		IRSSI_NOTICE(server, from, "%9%s%9 wants to authenticate. "
 				"Type %9/otr auth <SECRET>%9 to complete.", from);
 		opc->ask_secret = 1;
-		otr_status_change(irssi, from, OTR_STATUS_SMP_INCOMING);
+		otr_status_change(server, from, OTR_STATUS_SMP_INCOMING);
 		break;
 	case OTRL_SMPEVENT_ASK_FOR_ANSWER:
-		IRSSI_NOTICE(irssi, from, "%9%s%9 wants to authenticate and "
+		IRSSI_NOTICE(server, from, "%9%s%9 wants to authenticate and "
 				"asked this question:", from);
-		IRSSI_NOTICE(irssi, from, "%b>%n %y%s%n", question);
-		IRSSI_NOTICE(irssi, from, "Type %9/otr auth <SECRET>%9 to complete.");
+		IRSSI_NOTICE(server, from, "%b>%n %y%s%n", question);
+		IRSSI_NOTICE(server, from, "Type %9/otr auth <SECRET>%9 to complete.");
 		opc->ask_secret = 1;
-		otr_status_change(irssi, from, OTR_STATUS_SMP_INCOMING);
+		otr_status_change(server, from, OTR_STATUS_SMP_INCOMING);
 		break;
 	case OTRL_SMPEVENT_IN_PROGRESS:
-		IRSSI_NOTICE(irssi, from, "%9%s%9 replied to your auth request",
+		IRSSI_NOTICE(server, from, "%9%s%9 replied to your auth request",
 				from);
-		otr_status_change(irssi, from, OTR_STATUS_SMP_FINALIZE);
+		otr_status_change(server, from, OTR_STATUS_SMP_FINALIZE);
 		break;
 	case OTRL_SMPEVENT_SUCCESS:
-		IRSSI_NOTICE(irssi, from, "%gAuthentication successful.%n");
-		otr_status_change(irssi, from, OTR_STATUS_SMP_SUCCESS);
+		IRSSI_NOTICE(server, from, "%gAuthentication successful.%n");
+		otr_status_change(server, from, OTR_STATUS_SMP_SUCCESS);
 		break;
 	case OTRL_SMPEVENT_ABORT:
-		otr_auth_abort(irssi, context->username);
-		otr_status_change(irssi, from, OTR_STATUS_SMP_ABORTED);
+		otr_auth_abort(server, context->username);
+		otr_status_change(server, from, OTR_STATUS_SMP_ABORTED);
 		break;
 	case OTRL_SMPEVENT_FAILURE:
 	case OTRL_SMPEVENT_CHEATED:
 	case OTRL_SMPEVENT_ERROR:
-		IRSSI_NOTICE(irssi, from, "%RAuthentication failed%n");
-		otr_status_change(irssi, from, OTR_STATUS_SMP_FAILED);
+		IRSSI_NOTICE(server, from, "%RAuthentication failed%n");
+		otr_status_change(server, from, OTR_STATUS_SMP_FAILED);
 		break;
 	default:
-		IRSSI_NOTICE(irssi, from, "Received unknown SMP event. "
+		IRSSI_NOTICE(server, from, "Received unknown SMP event. "
 			"Ignoring");
 		break;
 	}

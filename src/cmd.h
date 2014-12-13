@@ -29,7 +29,7 @@
  */
 struct irssi_commands {
 	const char *name;
-	void (*func)(struct otr_user_state *ustate, SERVER_REC *irssi,
+	void (*func)(struct otr_user_state *ustate, SERVER_REC *server,
 			const char *target, const void *data);
 };
 
@@ -37,7 +37,7 @@ struct irssi_commands {
  * This is called once the command is received and then dispatch to the correct
  * func() of the right irssi_commands.
  */
-void cmd_generic(struct otr_user_state *ustate, SERVER_REC *irssi,
+void cmd_generic(struct otr_user_state *ustate, SERVER_REC *server,
 		const char *target, char *cmd, const void *data);
 
 #endif /* IRSSI_OTR_CMD_H */

@@ -18,7 +18,6 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA
  */
 
-#include <assert.h>
 #include <string.h>
 
 #include "otr.h"
@@ -29,7 +28,7 @@
  */
 static char *ltrim(char *s)
 {
-	assert(s);
+	g_assert(s != NULL);
 
 	while (isspace(*s)) {
 		s++;
@@ -45,11 +44,11 @@ static char *rtrim(char *s)
 	size_t len;
 	char *back;
 
-	assert(s);
+	g_assert(s != NULL);
 
 	len = strlen(s);
 	if (len == 0) {
-		goto end;
+		return s;
 	}
 
 	back = s + len;
@@ -59,7 +58,6 @@ static char *rtrim(char *s)
 	/* Remove whitespace(s) from the string. */
 	*(back + 1) = '\0';
 
-end:
 	return s;
 }
 
@@ -68,7 +66,7 @@ end:
  */
 char *utils_trim_string(char *s)
 {
-	assert(s);
+	g_assert(s != NULL);
 
 	return rtrim(ltrim(s));
 }
@@ -85,14 +83,14 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 	const char *tmp, *q_end, *q_beg, *args = data;
 	char *q = NULL, *s = NULL;
 
-	if (!data || !question || !secret) {
-		goto error;
+	if (data == NULL || question == NULL || secret == NULL) {
+		return -1;
 	}
 
 	/* Check for '[' as first char */
 	q_beg = strchr(args, '[');
-	if (!q_beg) {
-		goto error;
+	if (q_beg == NULL) {
+		return -1;
 	}
 
 	/*
@@ -103,9 +101,9 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 
 	/* Search closing bracket for the end of the question. */
 	q_end = strchr(args, ']');
-	if (!q_end) {
+	if (q_end == NULL) {
 		/* Malformed authq command */
-		goto error;
+		return -1;
 	}
 
 	/* Get the question length */
@@ -114,7 +112,7 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 	/* Add 1 char for the \0 */
 	q = malloc((q_len + 1) * sizeof(char));
 	if (q == NULL) {
-		goto error;
+		return -1;
 	}
 
 	/* Copy question */
@@ -126,7 +124,8 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 
 	tmp = strchr(args, ' ');
 	if (tmp == NULL) {
-		goto error;
+		free(q);
+		return -1;
 	}
 
 	/* Ignore the next white space */
@@ -140,7 +139,8 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 
 	s = malloc((s_len + 1) * sizeof(char));
 	if (s == NULL) {
-		goto error;
+		free(q);
+		return -1;
 	}
 
 	strncpy(s, args, s_len);
@@ -150,11 +150,6 @@ int utils_io_extract_smp(const char *data, char **question, char **secret)
 	*secret = s;
 
 	return 0;
-
-error:
-	free(q);
-	free(s);
-	return -1;
 }
 
 /*
@@ -170,30 +165,29 @@ int utils_auth_extract_secret(const char *_data, char **secret)
 	int ret = -1;
 	char *s, *cmd_offset = NULL, *data = NULL;
 
-	if (!_data || !secret) {
-		goto error;
+	if (_data == NULL || secret == NULL) {
+		return ret;
 	}
 
 	data = strdup(_data);
-	if (!data) {
-		goto error;
+	if (data == NULL) {
+		return -1;
 	}
 
 	s = utils_trim_string(data);
 
 	cmd_offset = strchr(s, ' ');
-	if (!cmd_offset) {
-		goto error;
+	if (cmd_offset == NULL) {
+		free(data);
+		return ret;
 	}
 
 	s = utils_trim_string(cmd_offset);
 
 	*secret = strdup(s);
 
-	ret = 0;
-
-error:
 	free(data);
+	ret = 0;
 	return ret;
 }
 
@@ -207,21 +201,26 @@ void utils_explode_args(const char *_data, char ***_argv, int *_argc)
 	int argc = 0, i = 0, have_arg = 0;
 	char **argv = NULL, *c, *data = NULL, *cmd_offset;
 
-	if (!_data || !_argv || !_argc) {
-		goto error;
+	if (_data == NULL || _argv == NULL || _argc == NULL) {
+		// We cannot set _argc here since it might be NULL.
+		// FIXME: assert(_argc); before this block followed by seting it to 0.
+		return;
 	}
 
 	data = strndup(_data, strlen(_data));
-	if (!data) {
-		goto error;
+	if (data == NULL) {
+		*_argc = argc;
+		return;
 	}
 
 	c = utils_trim_string(data);
 
 	/* Ignore first command */
 	cmd_offset = strchr(c, ' ');
-	if (!cmd_offset) {
-		goto error;
+	if (cmd_offset == NULL) {
+		*_argc = argc;
+		free(data);
+		return;
 	}
 
 	cmd_offset = utils_trim_string(cmd_offset);
@@ -244,12 +243,16 @@ void utils_explode_args(const char *_data, char ***_argv, int *_argc)
 	/* No args, only spaces encountered. */
 	if (!have_arg) {
 		argc = 0;
-		goto error;
+		*_argc = argc;
+		free(data);
+		return;
 	}
 
 	argv = zmalloc(argc * sizeof(char *));
-	if (!argv) {
-		goto error;
+	if (argv == NULL) {
+		*_argc = argc;
+		free(data);
+		return;
 	}
 
 	/* Ignore first command */
@@ -261,11 +264,8 @@ void utils_explode_args(const char *_data, char ***_argv, int *_argc)
 	}
 
 	*_argv = argv;
-
-error:
 	*_argc = argc;
 	free(data);
-	return;
 }
 
 /*
@@ -276,7 +276,7 @@ void utils_free_args(char ***argv, int argc)
 	int i;
 	char **args;
 
-	assert(argv);
+	g_assert(argv != NULL);
 
 	/* Nothing to free. */
 	if (argc == 0) {
@@ -303,24 +303,21 @@ void utils_extract_command(const char *data, char **_cmd)
 {
 	char *s, *cmd = NULL;
 
-	assert(data);
-	assert(_cmd);
+	g_assert(data != NULL);
+	g_assert(_cmd != NULL);
 
 	/* Search for the first whitespace. */
 	s = strchr(data, ' ');
 	if (s) {
 		cmd = strndup(data, s - data);
-		if (!cmd) {
-			goto error;
+		if (cmd == NULL) {
+			return;
 		}
 	} else {
 		cmd = strdup(data);
 	}
 
 	*_cmd = cmd;
-
-error:
-	return;
 }
 
 /*
@@ -331,7 +328,7 @@ void utils_string_to_upper(char *string)
 	int i = 0;
 	char c;
 
-	assert(string);
+	g_assert(string != NULL);
 
 	while (string[i]) {
 		c = string[i];
@@ -355,18 +352,15 @@ void utils_hash_parts_to_readable_hash(const char **parts, char *dst)
 	int ret;
 
 	/* Safety net. This is a code flow error. */
-	assert(parts && parts[0] && parts[1] && parts[2] && parts[3] && parts[4]);
-	assert(dst);
+	g_assert(parts != NULL && parts[0] && parts[1] && parts[2] && parts[3] && parts[4]);
+	g_assert(dst != NULL);
 
 	ret = snprintf(dst, OTRL_PRIVKEY_FPRINT_HUMAN_LEN, "%s %s %s %s %s",
 			parts[0], parts[1], parts[2], parts[3], parts[4]);
 	if (ret < 0) {
-		goto error;
+		return;
 	}
 
 	/* In place upper case full string. */
 	utils_string_to_upper(dst);
-
-error:
-	return;
 }
