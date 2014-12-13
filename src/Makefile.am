@@ -1,15 +1,14 @@
 AM_CFLAGS = $(LIBOTR_CFLAGS) $(LIBGCRYPT_CFLAGS) $(PACKAGE_FLAGS)
 
-IRSSI_DIST=/usr/include/irssi
-IRSSI_INCLUDE = -I$(IRSSI_DIST) \
-				-I$(IRSSI_DIST)/src \
-				-I$(IRSSI_DIST)/src/fe-common/core \
-				-I$(IRSSI_DIST)/src/core \
-				-I$(IRSSI_DIST)/src/fe-text \
-				-I$(IRSSI_DIST)/src/irc \
-				-I$(IRSSI_DIST)/src/irc/core \
-				-I$(IRSSI_DIST)/src/irc/dcc \
-				-I$(IRSSI_DIST)/src/irc/notifylist
+IRSSI_INCLUDE = -I$(IRSSI_HEADER_DIR) \
+				-I$(IRSSI_HEADER_DIR)/src \
+				-I$(IRSSI_HEADER_DIR)/src/fe-common/core \
+				-I$(IRSSI_HEADER_DIR)/src/core \
+				-I$(IRSSI_HEADER_DIR)/src/fe-text \
+				-I$(IRSSI_HEADER_DIR)/src/irc \
+				-I$(IRSSI_HEADER_DIR)/src/irc/core \
+				-I$(IRSSI_HEADER_DIR)/src/irc/dcc \
+				-I$(IRSSI_HEADER_DIR)/src/irc/notifylist
 
 INCLUDES = -I$(top_srcdir)/src $(IRSSI_INCLUDE)
 

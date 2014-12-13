@@ -19,10 +19,12 @@ AC_CHECK_LIB([pthread], [pthread_create], [],
 )
 
 AC_ARG_WITH([irssi-headers],
-	AS_HELP_STRING([--with-irssi-headers],
+	AS_HELP_STRING([--with-irssi-headers=DIR],
 	[Directory containing the Irssi header files]),
 	[IRSSI_HEADER_DIR="$withval"],
 	[IRSSI_HEADER_DIR="\"\""])
+
+AC_SUBST(IRSSI_HEADER_DIR)
 
 # Check for Glib. It needs to be installed anyway or this macro will not be defined.
 AM_PATH_GLIB_2_0([2.22.0], [],
@@ -46,25 +48,25 @@ AC_SUBST(PACKAGE_CFLAGS)
 # cluster fu*** of headers and local inclusion system wide...
 CPPFLAGS="$CPPFLAGS $PACKAGE_CFLAGS -I$IRSSI_HEADER_DIR"
 AC_CHECK_HEADERS([\
-				irssi/src/common.h \
-				irssi/src/core/commands.h \
-				irssi/src/core/modules.h \
-				irssi/src/core/servers.h \
-				irssi/src/core/signals.h \
-				irssi/src/core/levels.h \
-				irssi/src/core/queries.h \
-				irssi/src/core/settings.h \
+				src/common.h \
+				src/core/commands.h \
+				src/core/modules.h \
+				src/core/servers.h \
+				src/core/signals.h \
+				src/core/levels.h \
+				src/core/queries.h \
+				src/core/settings.h \
 				], [], [AC_MSG_ERROR([Irssi Header files are needed])],
 [
-#include <irssi/irssi-config.h>
-#ifdef HAVE_IRSSI_SRC_COMMON_H
-#include <irssi/src/common.h>
+#include <irssi-config.h>
+#ifdef HAVE_SRC_COMMON_H
+#include <src/common.h>
 #endif
 ])
 
 LT_INIT
 
-CFLAGS="-Wall $CFLAGS -g -fno-strict-aliasing -fstack-protector-all -D_FORTIFY_SOURCE=2 -O1 -Wl,-z,relro,-z,now -fPIE -pie $PACKAGE_CFLAGS"
+CFLAGS="-Wall $CFLAGS -g -fPIE -pie $PACKAGE_CFLAGS"
 
 DEFAULT_INCLUDES="-I\$(top_srcdir) -I\$(top_builddir) -I\$(top_builddir)/src -I\$(top_builddir)/include"
 AC_SUBST(DEFAULT_INCLUDES)
