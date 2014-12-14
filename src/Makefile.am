@@ -20,7 +20,7 @@ libotr_la_SOURCES = otr-formats.c otr-formats.h \
                  utils.h utils.c otr.h module.c module.h irssi-otr.h
 
 libotr_la_LDFLAGS = -avoid-version -module
-libotr_la_LDFLAGS += $(LIBOTR_LIBS) $(LIBGCRYPT_LIBS) -lpthread
+libotr_la_LDFLAGS += $(LIBOTR_LIBS) $(LIBGCRYPT_LIBS)
 
 install-data-hook:
 	chmod 644 $(DESTDIR)/$(plugindir)/libotr.so

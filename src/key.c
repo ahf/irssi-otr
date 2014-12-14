@@ -22,7 +22,6 @@
 #define _GNU_SOURCE
 #include <glib/gstdio.h>
 #include <libgen.h>
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/poll.h>
@@ -38,8 +37,6 @@ static struct key_gen_data key_gen_state = {
 	.status = KEY_GEN_IDLE,
 	.gcry_error = GPG_ERR_NO_ERROR,
 };
-
-static pthread_t keygen_thread;
 
 /*
  * Build file path concatenate to the irssi config dir.
@@ -184,10 +181,10 @@ void key_gen_run(struct otr_user_state *ustate, const char *account_name)
 		return;
 	}
 
-	ret = pthread_create(&keygen_thread, NULL, generate_key, NULL);
+	generate_key(NULL);
+
 	if (ret < 0) {
-		IRSSI_MSG("Key generation failed. Thread failure: %s",
-				strerror(errno));
+		IRSSI_MSG("Key generation failed. Fork failed: %s", strerror(errno));
 		reset_key_gen_state();
 		return;
 	}

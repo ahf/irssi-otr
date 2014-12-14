@@ -13,11 +13,6 @@ AC_PROG_CC
 AM_DISABLE_STATIC
 AM_PROG_LIBTOOL
 
-# Check for pthread
-AC_CHECK_LIB([pthread], [pthread_create], [],
-	[AC_MSG_ERROR([Cannot find libpthread. Use [LDFLAGS]=-Ldir to specify its location.])]
-)
-
 AC_ARG_WITH([irssi-headers],
 	AS_HELP_STRING([--with-irssi-headers=DIR],
 	[Directory containing the Irssi header files]),
