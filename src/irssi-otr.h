@@ -31,6 +31,8 @@
 #include <src/core/signals.h>
 #include <src/core/levels.h>
 #include <src/core/queries.h>
+#include <src/core/pidwait.h>
+#include <src/core/network.h>
 #include <src/fe-common/core/printtext.h>
 #include <src/fe-common/core/fe-windows.h>
 #include <src/core/modules.h>

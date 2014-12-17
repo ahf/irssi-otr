@@ -23,28 +23,6 @@
 
 #include "otr.h"
 
-/*
- * Status of key generation.
- */
-enum key_gen_status {
-	KEY_GEN_IDLE		= 0,
-	KEY_GEN_RUNNING		= 1,
-	KEY_GEN_FINISHED    = 2,
-	KEY_GEN_ERROR		= 3,
-};
-
-/*
- * Data of the state of key generation.
- */
-struct key_gen_data {
-	struct otr_user_state *ustate;
-	char *account_name;
-	char *key_file_path;
-	enum key_gen_status status;
-	gcry_error_t gcry_error;
-	void *newkey;
-};
-
 void key_gen_check(void);
 void key_gen_run(struct otr_user_state *ustate, const char *account_name);
 void key_load(struct otr_user_state *ustate);
