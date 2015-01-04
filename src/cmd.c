@@ -366,8 +366,6 @@ static struct irssi_commands cmds[] = {
 
 /*
  * Entry point for all other commands.
- *
- * Return TRUE if command exist and is executed else FALSE.
  */
 void cmd_generic(struct otr_user_state *ustate, SERVER_REC *server,
 		const char *target, char *cmd, const void *data)
